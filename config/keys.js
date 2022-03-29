@@ -5,7 +5,7 @@ module.exports = {
         clientSecret: process.env.clientSecret,
     },
         mongodb: {
-            DATABASE_URI: 'mongodb+srv://space-ex:12345@cluster0.kh4cu.mongodb.net/myFirstDatabase?retryWrites=true&w=majority'
+            DATABASE_URI: process.env.DATABASE_URI,
         },
 
     session: {
