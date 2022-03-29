@@ -7,22 +7,22 @@ const userSchema = new Schema(
   {
     firstName: {
       type: String,
-      required: true,
+      // required: true,
       trim: true,
     },
     lastName: {
       type: String,
-      required: true,
+      // required: true,
       trim: true,
     },
     phoneNumber: {
       type: String,
-      required: true,
+      // required: true,
       trim: true,
     },
     email: {
       type: String,
-      required: true,
+      // required: true,
       trim: true,
       lowercase: true,
       match: [
@@ -32,7 +32,7 @@ const userSchema = new Schema(
     },
     password: {
       type: String,
-      required: true,
+      // required: true,
       trim: true,
     },
     role: {
@@ -40,6 +40,15 @@ const userSchema = new Schema(
       enum: ["User", "Admin"],
       default: "User",
     },
+    username: {
+       type: String,
+      },
+    googleId: {
+      type : String,
+    },
+  thumbnail: {
+    type : String,
+  },
   },
   {
     timestamps: true,
