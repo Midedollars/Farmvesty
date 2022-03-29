@@ -1,14 +1,16 @@
 // require dependencies
 const express = require("express");
 const router = express.Router();
+const admin = require("./models/admin.model");
+const user = require("./models/user.model");
 const app = express();
 const authRoutes = require('./routes/auth-routes')
 const passportSetup = require('./config/passport-setup')
 const userRouter = require("./routes/user.route");
 const adminRouter = require("./routes/admin.route");
-const farminvestpackageRouter = require("./routes/farminvestpackage.route");
-
-const PORT = 5656
+const farminvestpackageRouter = require("./routes/farminvestpackage.route"); 
+ 
+const PORT = 5657
 
  
 // set view engine
@@ -50,11 +52,11 @@ app.use("/api/v1", farminvestpackageRouter);
 
 
 
-app.listen(PORT,()=>{
-  console.log(`listening on https://localhost:${PORT}`)
-})
+// app.listen(PORT,()=>{
+//   console.log(`listening on https://localhost:${PORT}`)
+// })
 
-// // server connection
-// app.listen(PORT, async () => {
-//   console.log(`The app is listening on PORT ${PORT}`);
-// });
+// server connection
+app.listen(PORT, async () => {
+  console.log(`The app is listening on PORT ${PORT}`);
+});

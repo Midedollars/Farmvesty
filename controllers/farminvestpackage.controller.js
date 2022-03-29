@@ -22,22 +22,69 @@ const createPackages = async (req, res, next) => {
   }
 };
 
-
-const viewPackages = async (req, res, next) => {
+const viewAllPackages = async (req, res, next) => {
   try {
-    const viewPackage = await Package.find()
+    const {page, limit} = req.query;
+    if (limit === null || page === null) {
+      limit = 1;
+      page = 1;
+    }
+    const allPackages = await Package.find()
+    .limit(limit * 1)
+    .skip((page - 1) * limit)
+    .sort({ user: -1 })
+    .exec();
+    const count = await Package.countDocuments();
     return successResMsg(res, 200, {
-        viewPackages,
+       viewAllPackages,
+      total: allPackages.length,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+    });
+  } catch (error) {
+    return errorResMsg(res, 401, "Server Error");
+  }
+};
+
+// const viewPackages = async (req, res, next) => {
+//   try {
+//     const viewPackage = await Package.find()
+//     return successResMsg(res, 200, {
+//         viewPackages,
+//     });
+//   } catch (error) {
+//     return errorResMsg(res, 500, "Server Error"); 
+//   }
+// };
+
+
+exports.uploadPackage = async (req, res, next) => {
+  try {
+    const {packageName, locationOfFarm, duration, amountPerUnit } = req.body;
+    const result = await validateAdmin.validateAsync(req.body)
+    return errorResMsg(res, 400, "please fill in the required details");
+
+    const uploads = new Package({
+      packageName,
+      locationOfFarm,
+      duration,
+      amountPerUnit,
+    });
+    return successResMsg(res, 201, {
+      uploads,
     });
   } catch (error) {
     return errorResMsg(res, 500, "Server Error"); 
   }
 };
 
+
 const availablePackages = async (req, res, next) => {
   try {
     const availablefarmPackages= [];
-    const allAvailableFarmPackages = await Package.find()
+    const allAvailableFarmPackages = await Package.find().populate("id", {
+      _id: 0,
+    });
     console.log(allAvailableFarmPackages)
     for (allAvailableFarmPackage of allAvailableFarmPackages) {
       if (allAvailableFarmPackage.status === "available") {
@@ -55,7 +102,9 @@ const availablePackages = async (req, res, next) => {
 const unavailablePackages = async (req, res, next) => {
   try {
     const unavailableFarmPackages= [];
-    const allUnavailableFarmPackages = await Package.find()
+    const allUnavailableFarmPackages = await Package.find().populate("id", {
+      _id: 0,
+    });
     for (unavailableFarmPackage of allUnavailableFarmPackages) {
       if (unavailableFarmPackage.status === "unavailable") {
         unavailableFarmPackages.push(unavailableFarmPackage);
@@ -69,9 +118,30 @@ const unavailablePackages = async (req, res, next) => {
   }
 };
 
+const updateAPackage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const updatedPackage = await Package.findOneAndUpdate(
+      { _id: id },
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!updatedPackage) {
+      return next(new AppError("Reminder Not Found!", 404));
+    }
+    return successResMsg(res, 200, {
+      message: "Package updated successfully",
+      updatedPackage,
+    });
+  } catch (error) {
+    return errorResMsg(res, 401, "Server Error");
+  }
+};
+
 module.exports = {
   createPackages,
-  viewPackages,
+  viewAllPackages,
   availablePackages,
-  unavailablePackages
+  unavailablePackages,
+  updateAPackage
 };
