@@ -58,13 +58,13 @@ const viewAllPackages = async (req, res, next) => {
 // };
 
 
-exports.uploadPackage = async (req, res, next) => {
+const uploadPackages = async (req, res, next) => {
   try {
     const {packageName, locationOfFarm, duration, amountPerUnit } = req.body;
     const result = await validateAdmin.validateAsync(req.body)
     return errorResMsg(res, 400, "please fill in the required details");
 
-    const uploads = new Package({
+    const uploadPackages = new Package({
       packageName,
       locationOfFarm,
       duration,
@@ -141,6 +141,7 @@ const updateAPackage = async (req, res, next) => {
 module.exports = {
   createPackages,
   viewAllPackages,
+  uploadPackages,
   availablePackages,
   unavailablePackages,
   updateAPackage
