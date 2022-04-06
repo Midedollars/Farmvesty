@@ -26,6 +26,16 @@ const packageSchema = new Schema(
       required: true,
       trim: true,
     },
+    totalAmount : {
+       type: String,
+       required: true,
+      trim: true,
+    },
+    unit : { 
+      type: String,
+      required: true,
+      trim: true,
+    },
     status: {
       type: String,
       enum: ["available", "unavailable"],

@@ -3,15 +3,21 @@ const Package = require("../models/farminvestpackage.model");
 
 const createPackages = async (req, res, next) => {
   try {
-    const { packageName, locationOfFarm, duration, amountPerUnit } = req.body;
+    const { packageName, locationOfFarm, duration, amountPerUnit, TotalAmount, unit } = req.body;
+
+     // validating reg.body with joi
     const result = await validatePackage.validateAsync(req.body)
     return errorResMsg(res, 400, "please fill in the required details");
+
+    let totalAmount = amountPerUnit * unit;
 
     const createPackages = await Package.create({
       packageName,
       locationOfFarm,
       duration,
       amountPerUnit,
+      totalAmount,
+      unit,
     });
     return successResMsg(res, 201, {
         message : "Packages created successfully" ,

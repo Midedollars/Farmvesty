@@ -12,7 +12,9 @@ const adminRouter = require("./routes/admin.route");
 const farminvestpackageRouter = require("./routes/farminvestpackage.route"); 
 const mongoose = require('mongoose');
 const keys = require('./config/keys');
-const mysql = require('mysql');
+const dataBase = require("./database/connectmysql.database");
+const pool = require("./database/connectPGsql")
+
 
 const app = express();
 const dotenv = require("dotenv");
