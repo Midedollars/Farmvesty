@@ -8,6 +8,7 @@ class User {
     this.password = password;
     this.role = role;
     this.isVerified = isVerified;
+    
     // this.username = username;
     // this.googleId = googleId;
     // this.thumbnail = thumbnail;

@@ -8,7 +8,7 @@ const axios = require("axios");
 const { successResMsg, errorResMsg } = require("../utils/response");
 const AppError = require("../utils/appError");
 const {
-  validiateUser,
+  validateUser,
   UserLogin,
   // validPhoneNumber,
 } = require("../middleware/joiValidate.middleware");
@@ -37,12 +37,23 @@ const registerUser = async (req, res, next) => {
 
 
    // validating req.body with joi
-   const registerUser = await validiateUser.validateAsync(req.body);
-  //  const [row]
+   const registerUser = await validateUser.validateAsync(req.body);
+   const [row] = await db.execute(
+    "SELECT `email` FROM `users` WHERE `email` = ?",
+    [req.body.email]
+  );
+
+  if (row.length > 0) {
+    return res.status(400).json({
+      message: "the email already exist",
+    });
+  }
+  console.log(row);
+  
     //  hashing password
     const hashPassword = await bcrypt.hash(password, 10);
     // creating a new user
-    const newUser = await db.execute(
+    const [newUser] = await db.execute(
       "INSERT INTO users (firstName, lastName,  phoneNumber, email, password) VALUES ( ?, ?, ?, ?, ?)",
       [firstName, lastName, phoneNumber,email, hashPassword]
     );
@@ -53,12 +64,17 @@ const registerUser = async (req, res, next) => {
 //       email,
 //       password: hashPassword,
 //     });
-    const data = {
-      // id: newUser._id,
-      email: newUser.email,
-      role: newUser.role,
+    const payload = {
+      id: row[0],
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      email: req.body.email,
+      phoneNumber: req.body.phoneNumber,
+      Password: req.body.hashPassword,
+      role: req.body.role,
+      isVerified: req.body.isVerified,
     };
-    const url = "theolamideolanrewaju.com";
+    // const url = "theolamideolanrewaju.com";
     const token = await jwt.sign(payload, process.env.SECRET_TOKEN, {
       expiresIn: "12h",
     });
@@ -66,7 +82,7 @@ const registerUser = async (req, res, next) => {
      let mailOptions = {
        to: newUser.email,
        subject: "Verify Email",
-       text: `Hi ${firstName}, Pls verify your email. ${url}
+       text: `Hi ${firstName}, Pls verify your email.
        ${token}`,
      };
      await sendMail(mailOptions);
@@ -76,7 +92,7 @@ const registerUser = async (req, res, next) => {
        token,
      });
   } catch (error) {
-    return errorResMsg(res, 500, "Server Error");
+    return errorResMsg(res, 500, error.message);
   }
 };
 
@@ -107,8 +123,12 @@ const verifyEmail = async (req, res, next) => {
         message: "user verified already",
       });
     }
-    user.isVerified = true;
-    user.save();
+    // user.isVerified = true;
+    // user.save();
+
+    const verify = await db.execute(
+      "UPDATE users SET isVerified = true WHERE isVerified = false",
+    );
     return successResMsg(res, 201, { message: "User verified successfully" });
   } catch (error) {
     return errorResMsg(res, 500, { message: error.message });
@@ -118,21 +138,41 @@ const verifyEmail = async (req, res, next) => {
 // logging in a user
 const loginUser = async (req, res, next) => {
   try {
-    const { phoneNumber, password } = req.body;
+    const { email, password } = req.body;
        // validate with joi
+        // validate with joi
+    if (email && password) {
+      const [row] = await db.execute("SELECT * FROM users WHERE email =?", [
+        email,
+      ]);
+      if (row.length === 0) {
+        return res.status(400).json({
+          message: "email address not found.",
+        });
+      }
+      const passMatch = await bcrypt.compareSync(password, row[0].password);
+      if (!passMatch) {
+        return res.status(400).json({ message: "incorrect paaword" });
+      }
+      if (row[0].isVerified === 0) {
+        return res.status(400).json({
+          message: "Unverified account.",
+        });
+      }
+    }
        const loginUser = await UserLogin.validateAsync(req.body);
   
-       const phoneNumberExist = await db.execute(
-         "SELECT phoneNumber FROM users WHERE phoneNumber = password");
-       if (!phoneNumberExist) {
-         return next(
-           new AppError("PhoneNumber does not exist, please create an account", 401)
-         );
-       }
+      //  const phoneNumberExist = await db.execute(
+      //    "SELECT phoneNumber FROM users WHERE phoneNumber = password");
+      //  if (!phoneNumberExist) {
+      //    return next(
+      //      new AppError("PhoneNumber does not exist, please create an account", 401)
+      //    );
+      //  }
        
-       if (phoneNumberExist.password) {
-         return next(new AppError("User not Verified", 401));
-       }
+      //  if (phoneNumberExist.password) {
+      //    return next(new AppError("User not Verified", 401));
+      //  }
     // const phoneNumberExist = await User.findOne({ phoneNumber });
     // if (!phoneNumberExist) {
     //     return next(new AppError("phoneNumber does not exist,please create an account", 401));
@@ -152,9 +192,9 @@ const loginUser = async (req, res, next) => {
     //     return next(new AppError("Your account has been suspended, please contact customer care", 403));
     // }
     const data = {
-      id: phoneNumberExist._id,
-      phoneNumber: phoneNumberExist.phoneNumber,
-      role: phoneNumberExist.role,
+      email: email.email,
+      phoneNumber: email.phoneNumber,
+      role: email.role,
     };
 
     const token = await jwt.sign(data, process.env.SECRET_TOKEN, {
@@ -165,102 +205,124 @@ const loginUser = async (req, res, next) => {
         token,
     });
   } catch (error) {
-    return errorResMsg(res, 500, "Server Error"); 
+    return errorResMsg(res, 500, error.message); 
   }
 };
 
-// const forgetPasswordLink = async (req, res, next) => {
-//   try {
-//     const { email } = req.body;
-//     const userEmail = await User.findOne({ email });
-//     if (!userEmail) {
-//      return next(new AppError("email not found", 404));
-//     }
-//     const data = {
-//       id: userEmail._id,
-//       email: userEmail.email,
-//       role: userEmail.role,
-//     };
+const forgetPasswordLink = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const [row] = await db.execute("SELECT * FROM users WHERE email =?", [
+      email,
+    ]);
+    if (row.length === 0) {
+      return res.status(400).json({
+        message: "email address not found.",
+      });
+    }
+    // console.log(row);
+    const data = {
+      phone: row[0].phoneNumber,
+      email: row[0].email,
+      role: row[0].role,
+    };
+    // console.log
+    // getting a secret token
+    const secret_key = process.env.SECRET_TOKEN;
+    const token = await jwt.sign(data, secret_key, { expiresIn: "1hr" });
+    const detoken = await jwt.verify(token, secret_key);
+    console.log(detoken);
+    let mailOptions = {
+      to: email.email,
+      subject: "Reset Password",
+      text: `Hi ${email.firstName}, Reset your password with the link below.${token}`,
+    };
+    await sendMail(mailOptions);
+    return successResMsg(res, 200, {
+      message: `Hi ${row[0].firstName},reset password.`,
+      token,
+    });
+  } catch (error) {
+    return errorResMsg(res, 500, { message: error.message });
+  }
+};
 
-//     // getting a secret token
-//     const secret_key = process.env.SECRET_TOKEN;
-//     const token = await jwt.sign(data, secret_key, { expiresIn: "12hr" });
-//     let mailOptions = {
-//       to: userEmail.email,
-//       subject: "Reset Password",
-//       text: `Hi ${userEmail.firstName}, Reset your password with the link below.${token}`,
-//     };
-//     await sendMail(mailOptions);
-//      return successResMsg(res, 200, {
-//         message: `Hi ${userEmail.firstName},reset password.`,
-//     });
-//   } catch (error) {
-//     return errorResMsg(res, 500, { message: error.message });
-//   }
-// };
+const changePassword = async (req, res, next) => {
+  try {
+    const { newPassword, confirmPassword } = req.body;
+    const { email, token } = req.query;
+    const secret_key = process.env.SECRET_TOKEN;
+    const decoded_token = await jwt.verify(token, secret_key);
+    console.log(email);
+    console.log(decoded_token);
+    if (decoded_token.email !== email) {
+      return next(new AppError("Email do not match.", 404));
+    }
+    if (newPassword !== confirmPassword) {
+      return next(new AppError("Password do not match.", 404));
+    }
+    const hashPassword = await bcrypt.hash(confirmPassword, 10);
+    const updatedPassword = await db.execute(
+      "UPDATE users SET isVerified = true WHERE isVerified = true"
+    );
+    return successResMsg(res, 200, {
+      message: "Password has been updated successfully",
+    });
+  } catch (error) {
+    return errorResMsg(res, 500, { message: error.message });
+  }
+};
 
-// const changePassword = async (req, res, next) => {
-//   try {
-//     const { newPassword, confirmPassword } = req.body;
-//     const { email, token } = req.query;
-//     const secret_key = process.env.SECRET_TOKEN;
-//     const decoded_token = await jwt.verify(token, secret_key);
-//     if (decoded_token.email !== email) {
-//      return next(new AppError("Email do not match.", 404));
-//     }
-//     if (newPassword !== confirmPassword) {
-//       return next(new AppError("Password do not match.", 404));
-//     }
-//     const hashPassword = await bcrypt.hash(confirmPassword, 10);
-//     const updatedPassword = await User.updateOne(
-//       { email },
-//       { password: hashPassword },
-//       {
-//         new: true,
-//       }
-//     );
-//    return successResMsg(res, 200, {
-//         message:`Password has been updated successfully.`,
-//     });
-//   } catch (error) {
-//      return errorResMsg(res, 500, { message: error.message });
-//   }
-// };
+const resetPassword = async (req, res, next) => {
+  try {
+    const { oldPassword, newPassword, confirmPassword } = req.body;
+    const { email } = req.query;
+    const loggedUser = await db.execute("SELECT * FROM users WHERE email =?", [
+      email,
+    ]);
+    // const headerTokenEmail = await jwt.verify(
+    //   req.headers.authorization.split(" ")[1],
+    //   process.env.SECRET_TOKEN
+    // ).email;
+    // console.log(headerTokenEmail);
+    // console.log(loggedUser[0][0].email);
+    // if (headerTokenEmail !== loggedUser[0][0].email) {
+    //   return next(new AppError("Forbidden", 404));
+    // }
+    // console.log(typeof loggedUser[0][0].password);
+    // console.log(typeof oldPassword);
+    // console.log(await bcrypt.compare(oldPassword, loggedUser[0][0].password));
+    // console.log(await bcrypt.compare(loggedUser[0][0].password, oldPassword));
+    // console.log(loggedUser[0][0].password);
+    const passwordMatch = await bcrypt.compare(
+      oldPassword,
+      loggedUser[0][0].password
+    );
+    // console.log(oldPassword);
+    // console.log("//////////////////////////////////////")
+    if (!passwordMatch) {
+      return next(new AppError("old Password is not correct.", 404));
+    }
 
-// const resetPassword = async (req, res, next) => {
-//   try {
-//     const { oldPassword, newPassword, confirmPassword } = req.body;
-//     const { email } = req.query;
-//     const loggedUser = await User.findOne({ email });
-//     const headerTokenEmail = await jwt.verify(
-//       req.headers.authorization.split(" ")[1],
-//       process.env.SECRET_TOKEN
-//     ).email;
-//     if(headerTokenEmail !== loggedUser.email ){
-//      return next(new AppError("Forbidden", 404));
-//     }
-//     const passwordMatch = await bcrypt.compare(
-//       oldPassword,
-//       loggedUser.password
-//     );
-//     if (!passwordMatch) {
-//      return next(new AppError("old Password is not correct.", 404));
-//     }
-//     if (newPassword !== confirmPassword) {
-//       return next(new AppError("Password do not match.", 400));
-//     }
-//     const hashPassword = await bcrypt.hash(confirmPassword, 10);
-//     const resetPassword = await User.updateOne(
-//       { email },
-//       { password: hashPassword }
-//     );
-//     return successResMsg(res, 200, {
-//         message:`Password has been updated successfully.`,
-//     });
-//   } catch (error) {
-//    return errorResMsg(res, 500, { message: error.message });
-//   }
-// };
+    if (newPassword !== confirmPassword) {
+      return next(new AppError("Password do not match.", 400));
+    }
+
+    const hashPassword = await bcrypt.hash(confirmPassword, 10);
+
+    const resetPassword = await db.execute(
+      "SELECT * FROM users WHERE email =?",
+      [email],
+      [{ password: hashPassword }]
+    );
+    return successResMsg(res, 200, {
+      message: `Password has been updated successfully.`,
+    });
+  } catch (error) {
+    return errorResMsg(res, 500, { message: error.message });
+  }
+};
+
 
 const payment = async (req, res, next) => {
   try {
@@ -299,8 +361,8 @@ module.exports = {
   registerUser, 
   verifyEmail,
   loginUser,
-  // forgetPasswordLink,
-  // changePassword,
-  // resetPassword,
+  forgetPasswordLink,
+  changePassword,
+  resetPassword,
   payment,
 };
